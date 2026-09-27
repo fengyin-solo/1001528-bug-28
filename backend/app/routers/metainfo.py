@@ -13,13 +13,13 @@ router = APIRouter(prefix="/api/metainfo", tags=["元数据登记"])
 service = MetainfoService()
 
 LIST_FIELDS = ["元数据编号", "关联站点", "元数据类型", "版本号", "变更内容", "登记人员", "生效日期", "元数据状态"]
-STATUSES = ["待登记", "已生效", "待补充", "已作废"]
+STATUSES = ["待登记", "待补充", "已生效", "已作废"]
 
 
 @router.get("", response_model=PageResult[dict])
 def list_entries(
     keyword: str | None = Query(default=None, description="按元数据编号检索"),
-    status: str | None = Query(default=None, description="待登记、已生效、待补充、已作废"),
+    status: str | None = Query(default=None, description="待登记、待补充、已生效、已作废"),
     page: int = 1,
     size: int = 20,
 ) -> PageResult[dict]:
@@ -30,9 +30,16 @@ def list_entries(
     return PageResult(items=items, total=total, page=page, size=size)
 
 
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出元数据登记清单：返回当前过滤条件下的全量数据。"""
+    items, total = service.list_entries(page=1, size=10000)
+    return {"module": "metainfo", "total": total, "items": items}
+
+
 @router.get("/{entry_id}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
-    """读取单条元数据记录明细；不存在时给出可读的错误说明。"""
+    """读取单条元数据记录明细（含版本历史）；不存在时给出可读的错误说明。"""
     entry = service.get_entry(entry_id)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"元数据记录 {entry_id} 不存在或已归档")
@@ -56,10 +63,3 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出元数据登记清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "metainfo", "total": total, "items": items}
